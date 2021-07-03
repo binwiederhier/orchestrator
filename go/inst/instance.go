@@ -53,12 +53,12 @@ type Instance struct {
 	AncestryUUID                 string
 	IsDetachedMaster             bool
 
-	Slave_SQL_Running          bool // for API backwards compatibility. Equals `ReplicationSQLThreadRuning`
-	ReplicationSQLThreadRuning bool
-	Slave_IO_Running           bool // for API backwards compatibility. Equals `ReplicationIOThreadRuning`
-	ReplicationIOThreadRuning  bool
-	ReplicationSQLThreadState  ReplicationThreadState
-	ReplicationIOThreadState   ReplicationThreadState
+	Slave_SQL_Running           bool // for API backwards compatibility. Equals `ReplicationSQLThreadRunning`
+	ReplicationSQLThreadRunning bool
+	Slave_IO_Running            bool // for API backwards compatibility. Equals `ReplicationIOThreadRunning`
+	ReplicationIOThreadRunning  bool
+	ReplicationSQLThreadState   ReplicationThreadState
+	ReplicationIOThreadState    ReplicationThreadState
 
 	HasReplicationFilters bool
 	GTIDMode              string
@@ -168,8 +168,8 @@ func (this *Instance) MarshalJSON() ([]byte, error) {
 	i.SlaveHosts = i.Replicas
 	i.SlaveLagSeconds = this.ReplicationLagSeconds
 	i.LogSlaveUpdatesEnabled = this.LogReplicationUpdatesEnabled
-	i.Slave_SQL_Running = this.ReplicationSQLThreadRuning
-	i.Slave_IO_Running = this.ReplicationIOThreadRuning
+	i.Slave_SQL_Running = this.ReplicationSQLThreadRunning
+	i.Slave_IO_Running = this.ReplicationIOThreadRunning
 
 	return json.Marshal(i)
 }
