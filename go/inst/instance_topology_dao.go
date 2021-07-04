@@ -150,19 +150,19 @@ func GetReplicationRestartPreserveStatements(instanceKey *InstanceKey, injectedS
 	if err != nil {
 		return statements, err
 	}
-	if instance.ReplicationIOThreadRunning {
+	if instance.ReplicationIOThreadRuning {
 		statements = append(statements, SemicolonTerminated(`stop slave io_thread`))
 	}
-	if instance.ReplicationSQLThreadRunning {
+	if instance.ReplicationSQLThreadRuning {
 		statements = append(statements, SemicolonTerminated(`stop slave sql_thread`))
 	}
 	if injectedStatement != "" {
 		statements = append(statements, SemicolonTerminated(injectedStatement))
 	}
-	if instance.ReplicationSQLThreadRunning {
+	if instance.ReplicationSQLThreadRuning {
 		statements = append(statements, SemicolonTerminated(`start slave sql_thread`))
 	}
-	if instance.ReplicationIOThreadRunning {
+	if instance.ReplicationIOThreadRuning {
 		statements = append(statements, SemicolonTerminated(`start slave io_thread`))
 	}
 	return statements, err
@@ -240,7 +240,7 @@ func SetSemiSyncReplica(instanceKey *InstanceKey, enableReplica bool) (*Instance
 	if _, err := ExecInstance(instanceKey, "set @@global.rpl_semi_sync_slave_enabled=?", enableReplica); err != nil {
 		return instance, log.Errore(err)
 	}
-	if instance.ReplicationIOThreadRunning {
+	if instance.ReplicationIOThreadRuning {
 		// Need to apply change by stopping starting IO thread
 		ExecInstance(instanceKey, "stop slave io_thread")
 		if _, err := ExecInstance(instanceKey, "start slave io_thread"); err != nil {
@@ -653,7 +653,7 @@ func ClassifyAndPrioritizeReplicas(replicas []*Instance, includeNonReplicatingIn
 	asyncReplicas = make([]*Instance, 0)
 	excludedReplicas = make([]*Instance, 0)
 	for _, replica := range replicas {
-		isReplicating := replica.ReplicationIOThreadRunning && replica.ReplicationSQLThreadRunning
+		isReplicating := replica.ReplicationIOThreadRuning && replica.ReplicationSQLThreadRuning
 		if !replica.IsLastCheckValid || (!replica.Key.Equals(includeNonReplicatingInstance) && !isReplicating) {
 			excludedReplicas = append(excludedReplicas, replica)
 		} else if replica.SemiSyncPriority == 0 || replica.IsDowntimed {
@@ -743,7 +743,7 @@ func logReplicas(description string, replicas []*Instance, logf func(s string, a
 	if len(replicas) > 0 {
 		logf("semi-sync: %s:", description)
 		for _, replica := range replicas {
-			logf("semi-sync: - %s: semi-sync enabled = %t, priority = %d, promotion rule = %s, downtimed = %t, last check = %t, replicating = %t", replica.Key.String(), replica.SemiSyncReplicaEnabled, replica.SemiSyncPriority, replica.PromotionRule, replica.IsDowntimed, replica.IsLastCheckValid, replica.ReplicationIOThreadRunning && replica.ReplicationSQLThreadRunning)
+			logf("semi-sync: - %s: semi-sync enabled = %t, priority = %d, promotion rule = %s, downtimed = %t, last check = %t, replicating = %t", replica.Key.String(), replica.SemiSyncReplicaEnabled, replica.SemiSyncPriority, replica.PromotionRule, replica.IsDowntimed, replica.IsLastCheckValid, replica.ReplicationIOThreadRuning && replica.ReplicationSQLThreadRuning)
 		}
 	} else {
 		logf("semi-sync: %s: (none)", description)
@@ -1153,7 +1153,7 @@ func SkipQuery(instanceKey *InstanceKey) (*Instance, error) {
 	if !instance.IsReplica() {
 		return instance, fmt.Errorf("instance is not a replica: %+v", instanceKey)
 	}
-	if instance.ReplicationSQLThreadRunning {
+	if instance.ReplicationSQLThreadRuning {
 		return instance, fmt.Errorf("Replication SQL thread is running on %+v", instanceKey)
 	}
 	if instance.LastSQLError == "" {

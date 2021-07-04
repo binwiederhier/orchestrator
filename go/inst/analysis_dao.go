@@ -793,13 +793,13 @@ func parseReplicas(replicaDetails string, masterKey *InstanceKey) ([]*Instance, 
 			return nil, log.Errorf("unable to parse IO thread state: %s", err.Error())
 		}
 		replica.ReplicationIOThreadState = ReplicationThreadState(replicationIOThreadState)
-		replica.ReplicationIOThreadRunning = replica.ReplicationIOThreadState.IsRunning()
+		replica.ReplicationIOThreadRuning = replica.ReplicationIOThreadState.IsRunning()
 		replicationSQLThreadState, err := strconv.Atoi(parts[7])
 		if err != nil {
 			return nil, log.Errorf("unable to parse SQL thread state: %s", err.Error())
 		}
 		replica.ReplicationSQLThreadState = ReplicationThreadState(replicationSQLThreadState)
-		replica.ReplicationSQLThreadRunning = replica.ReplicationSQLThreadState.IsRunning()
+		replica.ReplicationSQLThreadRuning = replica.ReplicationSQLThreadState.IsRunning()
 		replicas = append(replicas, replica)
 	}
 	return replicas, nil
