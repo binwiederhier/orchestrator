@@ -232,12 +232,12 @@ func GetReplicationAnalysis(clusterName string, hints *ReplicationAnalysisHints)
 				replica_instance.semi_sync_enforced, ',', 
 				replica_downtime.downtime_active is not null and ifnull(replica_downtime.end_timestamp, now()) > now(), ',',
 				replica_instance.last_checked <= replica_instance.last_seen and replica_instance.last_attempted_check <= replica_instance.last_seen + interval ? second, ',',
-				candidate_instance.promotion_rule, ',',
+				replica_candidate_instance.promotion_rule, ',',
 				replica_instance.replication_sql_thread_state, ',',
 				replica_instance.replication_io_thread_state
 			)
 			separator ' '
-		) as replicas_details,
+		) as replica_details,
 		MIN(
 			master_instance.slave_sql_running = 1
 			AND master_instance.slave_io_running = 0
@@ -386,9 +386,9 @@ func GetReplicationAnalysis(clusterName string, hints *ReplicationAnalysisHints)
 			) = replica_instance.master_host
 			AND master_instance.port = replica_instance.master_port
 		)
-		LEFT JOIN candidate_database_instance candidate_instance ON (
-			master_instance.hostname = candidate_instance.hostname
-			AND master_instance.port = candidate_instance.port
+		LEFT JOIN candidate_database_instance as replica_candidate_instance ON (
+			replica_instance.hostname = replica_candidate_instance.hostname
+			AND replica_instance.port = replica_candidate_instance.port
 		)
 		LEFT JOIN database_instance_maintenance ON (
 			master_instance.hostname = database_instance_maintenance.hostname
@@ -486,7 +486,7 @@ func GetReplicationAnalysis(clusterName string, hints *ReplicationAnalysisHints)
 		// countValidSemiSyncReplicasEnabled := m.GetUint("count_valid_semi_sync_replicas")
 		a.SemiSyncMasterWaitForReplicaCount = m.GetUint("semi_sync_master_wait_for_slave_count")
 		a.SemiSyncMasterClients = m.GetUint("semi_sync_master_clients")
-		a.SemiSyncReplicaTopologyValid = isSemiSyncReplicaTopologyValid(m.GetString("replicas_details"), &a.AnalyzedInstanceKey, a.SemiSyncMasterWaitForReplicaCount, a.SemiSyncMasterClients)
+		a.SemiSyncReplicaTopologyValid = isSemiSyncReplicaTopologyValid(m.GetString("replica_details"), &a.AnalyzedInstanceKey, a.SemiSyncMasterWaitForReplicaCount, a.SemiSyncMasterClients)
 
 		a.MinReplicaGTIDMode = m.GetString("min_replica_gtid_mode")
 		a.MaxReplicaGTIDMode = m.GetString("max_replica_gtid_mode")
@@ -760,7 +760,10 @@ func isSemiSyncReplicaTopologyValid(replicaDetails string, masterKey *InstanceKe
 	return len(actions) == 0
 }
 
+// parseReplicaDetails parses the space-separated replica details returned by the giant query (see above)
 func parseReplicaDetails(replicaDetails string, masterKey *InstanceKey) ([]*Instance, error) {
+	// TODO this should NOT return `Instance` because that will create the illusion that all fields and functions are
+	// TODO available; if Shlomi agrees with this approach in general, I'll make a `ReplicaInstance` struct or something like that
 	replicas := make([]*Instance, 0)
 	if replicaDetails == "" {
 		return replicas, nil
