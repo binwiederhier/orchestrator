@@ -225,19 +225,19 @@ func GetReplicationAnalysis(clusterName string, hints *ReplicationAnalysisHints)
 				replica_instance.Port
 			)
 		) as replicas,
-        GROUP_CONCAT(
-            concat(
-                replica_instance.Hostname, ':', replica_instance.Port, ',',
-                replica_instance.semi_sync_replica_enabled, ',',
+		GROUP_CONCAT(
+			concat(
+				replica_instance.Hostname, ':', replica_instance.Port, ',',
+				replica_instance.semi_sync_replica_enabled, ',',
 				replica_instance.semi_sync_enforced, ',', 
-                replica_downtime.downtime_active is not null and ifnull(replica_downtime.end_timestamp, now()) > now(), ',',
-                replica_instance.last_checked <= replica_instance.last_seen and replica_instance.last_attempted_check <= replica_instance.last_seen + interval ? second, ',',
+				replica_downtime.downtime_active is not null and ifnull(replica_downtime.end_timestamp, now()) > now(), ',',
+				replica_instance.last_checked <= replica_instance.last_seen and replica_instance.last_attempted_check <= replica_instance.last_seen + interval ? second, ',',
 				candidate_instance.promotion_rule, ',',
 				replica_instance.replication_sql_thread_state, ',',
-                replica_instance.replication_io_thread_state
-            )
-            separator ' '
-        ) as replicas_details,
+				replica_instance.replication_io_thread_state
+			)
+			separator ' '
+		) as replicas_details,
 		MIN(
 			master_instance.slave_sql_running = 1
 			AND master_instance.slave_io_running = 0
@@ -542,6 +542,10 @@ func GetReplicationAnalysis(clusterName string, hints *ReplicationAnalysisHints)
 				a.Analysis = UnreachableMaster
 				a.Description = "Master cannot be reached by orchestrator but it has replicating replicas; possibly a network/host issue"
 				//
+			} else if config.Config.EnforceExactSemiSyncReplicas && a.IsMaster && a.SemiSyncMasterEnabled && a.SemiSyncMasterStatus && (!a.SemiSyncReplicaTopologyValid || (a.SemiSyncMasterWaitForReplicaCount > 0 && a.SemiSyncMasterClients != a.SemiSyncMasterWaitForReplicaCount)) {
+				a.Analysis = MasterWithIncorrectSemiSyncReplicas
+				a.Description = "Semi sync master has more incorrect semi sync replicas configured"
+				//
 			} else if a.IsMaster && a.SemiSyncMasterEnabled && a.SemiSyncMasterStatus && a.SemiSyncMasterWaitForReplicaCount > 0 && a.SemiSyncMasterClients < a.SemiSyncMasterWaitForReplicaCount {
 				if isStaleBinlogCoordinates {
 					a.Analysis = LockedSemiSyncMaster
@@ -550,10 +554,6 @@ func GetReplicationAnalysis(clusterName string, hints *ReplicationAnalysisHints)
 					a.Analysis = LockedSemiSyncMasterHypothesis
 					a.Description = "Semi sync master seems to be locked, more samplings needed to validate"
 				}
-				//
-			} else if config.Config.EnforceExactSemiSyncReplicas && a.IsMaster && a.SemiSyncMasterEnabled && a.SemiSyncMasterStatus && !a.SemiSyncReplicaTopologyValid {
-				a.Analysis = MasterWithIncorrectSemiSyncReplicas
-				a.Description = "Semi sync master has more incorrect semi sync replicas configured"
 				//
 			} else if a.IsMaster && a.LastCheckValid && a.IsReadOnly && a.CountValidReplicatingReplicas > 0 && config.Config.RecoverNonWriteableMaster {
 				a.Analysis = NoWriteableMasterStructureWarning
@@ -750,7 +750,7 @@ func isSemiSyncReplicaTopologyValid(replicaDetails string, masterKey *InstanceKe
 		return true // don't bother if we won't correct the semi-sync topology anyway
 	}
 
-	replicas, err := parseReplicas(replicaDetails, masterKey)
+	replicas, err := parseReplicaDetails(replicaDetails, masterKey)
 	if err != nil {
 		log.Warningf("semi-sync: unable to parse replica details: %s", err.Error())
 		return true // fallback to "everything's fine"
@@ -760,15 +760,18 @@ func isSemiSyncReplicaTopologyValid(replicaDetails string, masterKey *InstanceKe
 	return len(actions) == 0
 }
 
-func parseReplicas(replicaDetails string, masterKey *InstanceKey) ([]*Instance, error) {
-	detailsList := strings.Split(replicaDetails, " ")
+func parseReplicaDetails(replicaDetails string, masterKey *InstanceKey) ([]*Instance, error) {
 	replicas := make([]*Instance, 0)
+	if replicaDetails == "" {
+		return replicas, nil
+	}
+	detailsList := strings.Split(replicaDetails, " ")
 	for _, details := range detailsList {
 		replica := NewInstance()
 		replica.MasterKey = *masterKey
 		parts := strings.Split(details, ",")
 		if len(parts) != 8 {
-			return nil, log.Errorf("unable to parse replica details")
+			return nil, log.Errorf("unable to parse replica details: %s", details)
 		}
 		instanceKey, err := ParseRawInstanceKey(parts[0])
 		if err != nil {
@@ -788,18 +791,8 @@ func parseReplicas(replicaDetails string, masterKey *InstanceKey) ([]*Instance, 
 		if err != nil {
 			return nil, log.Errorf("unable to parse promotion rule: %s", err.Error())
 		}
-		replicationIOThreadState, err := strconv.Atoi(parts[6])
-		if err != nil {
-			return nil, log.Errorf("unable to parse IO thread state: %s", err.Error())
-		}
-		replica.ReplicationIOThreadState = ReplicationThreadState(replicationIOThreadState)
-		replica.ReplicationIOThreadRuning = replica.ReplicationIOThreadState.IsRunning()
-		replicationSQLThreadState, err := strconv.Atoi(parts[7])
-		if err != nil {
-			return nil, log.Errorf("unable to parse SQL thread state: %s", err.Error())
-		}
-		replica.ReplicationSQLThreadState = ReplicationThreadState(replicationSQLThreadState)
-		replica.ReplicationSQLThreadRuning = replica.ReplicationSQLThreadState.IsRunning()
+		replica.ReplicationIOThreadRuning = parts[6] == "1"
+		replica.ReplicationSQLThreadRuning = parts[7] == "1"
 		replicas = append(replicas, replica)
 	}
 	return replicas, nil
