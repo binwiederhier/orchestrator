@@ -645,17 +645,18 @@ func MaybeEnableSemiSyncReplica(replicaInstance *Instance) (*Instance, error) {
 }
 
 // ClassifyAndPrioritizeReplicas takes a list of replica instances and classifies them based on their semi-sync priority, excluding
-// replicas that are downtimed or down. It furthermore prioritizes the possible semi-sync replicas based on SemiSyncPriority, PromotionRule
-// and hostname (fallback).
+// replicas that are down or not replicating. Downtimed replicas are treated as always-async replicas. It furthermore prioritizes the
+// possible semi-sync replicas based on SemiSyncPriority, PromotionRule and hostname (fallback).
 func ClassifyAndPrioritizeReplicas(replicas []*Instance, includeNonReplicatingInstance *InstanceKey) (possibleSemiSyncReplicas []*Instance, asyncReplicas []*Instance, excludedReplicas []*Instance) {
-	// Filter out downtimed and down replicas
+	// Classify replicas into excluded, async and possible semi-sync replicas
 	possibleSemiSyncReplicas = make([]*Instance, 0)
 	asyncReplicas = make([]*Instance, 0)
 	excludedReplicas = make([]*Instance, 0)
 	for _, replica := range replicas {
-		if replica.IsDowntimed || !replica.IsLastCheckValid || (!replica.Key.Equals(includeNonReplicatingInstance) && !replica.ReplicaRunning()) {
+		isReplicating := replica.ReplicationIOThreadRuning && replica.ReplicationSQLThreadRuning
+		if !replica.IsLastCheckValid || (!replica.Key.Equals(includeNonReplicatingInstance) && !isReplicating) {
 			excludedReplicas = append(excludedReplicas, replica)
-		} else if replica.SemiSyncPriority == 0 {
+		} else if replica.SemiSyncPriority == 0 || replica.IsDowntimed {
 			asyncReplicas = append(asyncReplicas, replica)
 		} else {
 			possibleSemiSyncReplicas = append(possibleSemiSyncReplicas, replica)
@@ -726,8 +727,8 @@ func determineSemiSyncReplicaActionsForEnoughTopology(possibleSemiSyncReplicas [
 // LogSemiSyncReplicaAnalysis outputs the analysis results for a semi-sync analysis using the given log function
 func LogSemiSyncReplicaAnalysis(possibleSemiSyncReplicas []*Instance, asyncReplicas []*Instance, excludedReplicas []*Instance, actions map[*Instance]bool, logf func(s string, a ...interface{})) {
 	logReplicas("possible semi-sync replicas (in priority order)", possibleSemiSyncReplicas, logf)
-	logReplicas("always-async replicas", asyncReplicas, logf)
-	logReplicas("excluded replicas (downtimed/defunct)", excludedReplicas, logf)
+	logReplicas("always-async replicas (zero-priority or downtimed)", asyncReplicas, logf)
+	logReplicas("excluded replicas (last check failed or not replicating)", excludedReplicas, logf)
 	if len(actions) > 0 {
 		logf("semi-sync: suggested actions:")
 		for replica, enable := range actions {
@@ -742,7 +743,7 @@ func logReplicas(description string, replicas []*Instance, logf func(s string, a
 	if len(replicas) > 0 {
 		logf("semi-sync: %s:", description)
 		for _, replica := range replicas {
-			logf("semi-sync: - %s: semi-sync enabled = %t, priority = %d, promotion rule = %s, downtimed = %t, last check = %t, replicating = %t", replica.Key.String(), replica.SemiSyncReplicaEnabled, replica.SemiSyncPriority, replica.PromotionRule, replica.IsDowntimed, replica.IsLastCheckValid, replica.ReplicaRunning())
+			logf("semi-sync: - %s: semi-sync enabled = %t, priority = %d, promotion rule = %s, downtimed = %t, last check = %t, replicating = %t", replica.Key.String(), replica.SemiSyncReplicaEnabled, replica.SemiSyncPriority, replica.PromotionRule, replica.IsDowntimed, replica.IsLastCheckValid, replica.ReplicationIOThreadRuning && replica.ReplicationSQLThreadRuning)
 		}
 	} else {
 		logf("semi-sync: %s: (none)", description)

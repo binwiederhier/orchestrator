@@ -40,7 +40,7 @@ const (
 	AllMasterReplicasNotReplicatingOrDead                                = "AllMasterReplicasNotReplicatingOrDead"
 	LockedSemiSyncMasterHypothesis                                       = "LockedSemiSyncMasterHypothesis"
 	LockedSemiSyncMaster                                                 = "LockedSemiSyncMaster"
-	MasterWithTooManySemiSyncReplicas                                    = "MasterWithTooManySemiSyncReplicas"
+	MasterWithIncorrectSemiSyncReplicas                                  = "MasterWithIncorrectSemiSyncReplicas"
 	MasterWithoutReplicas                                                = "MasterWithoutReplicas"
 	DeadCoMaster                                                         = "DeadCoMaster"
 	DeadCoMasterAndSomeReplicas                                          = "DeadCoMasterAndSomeReplicas"
@@ -154,6 +154,7 @@ type ReplicationAnalysis struct {
 	SemiSyncMasterStatus                      bool
 	SemiSyncMasterWaitForReplicaCount         uint
 	SemiSyncMasterClients                     uint
+	SemiSyncReplicaTopologyValid              bool
 	CountSemiSyncReplicasEnabled              uint
 	CountLoggingReplicas                      uint
 	CountStatementBasedLoggingReplicas        uint

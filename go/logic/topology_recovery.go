@@ -1497,11 +1497,11 @@ func checkAndRecoverLockedSemiSyncMaster(analysisEntry inst.ReplicationAnalysis,
 	return recoverSemiSyncReplicas(topologyRecovery, analysisEntry, false)
 }
 
-// checkAndRecoverMasterWithTooManySemiSyncReplicas
-func checkAndRecoverMasterWithTooManySemiSyncReplicas(analysisEntry inst.ReplicationAnalysis, candidateInstanceKey *inst.InstanceKey, forceInstanceRecovery bool, skipProcesses bool) (recoveryAttempted bool, topologyRecovery *TopologyRecovery, err error) {
+// checkAndRecoverMasterWithIncorrectSemiSyncReplicas
+func checkAndRecoverMasterWithIncorrectSemiSyncReplicas(analysisEntry inst.ReplicationAnalysis, candidateInstanceKey *inst.InstanceKey, forceInstanceRecovery bool, skipProcesses bool) (recoveryAttempted bool, topologyRecovery *TopologyRecovery, err error) {
 	topologyRecovery, err = AttemptRecoveryRegistration(&analysisEntry, true, true)
 	if topologyRecovery == nil {
-		AuditTopologyRecovery(topologyRecovery, fmt.Sprintf("found an active or recent recovery on %+v. Will not issue another RecoverMasterWithTooManySemiSyncReplicas.", analysisEntry.AnalyzedInstanceKey))
+		AuditTopologyRecovery(topologyRecovery, fmt.Sprintf("found an active or recent recovery on %+v. Will not issue another RecoverMasterWithIncorrectSemiSyncReplicas.", analysisEntry.AnalyzedInstanceKey))
 		return false, nil, err
 	}
 	return recoverSemiSyncReplicas(topologyRecovery, analysisEntry, true)
@@ -1735,8 +1735,8 @@ func getCheckAndRecoverFunction(analysisCode inst.AnalysisCode, analyzedInstance
 		} else {
 			return checkAndRecoverLockedSemiSyncMaster, true
 		}
-	case inst.MasterWithTooManySemiSyncReplicas:
-		return checkAndRecoverMasterWithTooManySemiSyncReplicas, true
+	case inst.MasterWithIncorrectSemiSyncReplicas:
+		return checkAndRecoverMasterWithIncorrectSemiSyncReplicas, true
 	// intermediate master
 	case inst.DeadIntermediateMaster:
 		return checkAndRecoverDeadIntermediateMaster, true
